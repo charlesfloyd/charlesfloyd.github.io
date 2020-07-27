@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <script src="https://d3js.org/topojson.v2.min.js"></script>
+    <script src="https://d3js.org/d3-geo-projection.v2.min.js"></script>
+<title> New York City Use of Force 2017-2019 </title>
+  </head>
+
+  <body>
+    <div id="svg_id" class="svg_class"></div>
+    <p></p>
+    <input type="range" name="yqslider" id="yqslider" min="2017" max="2019.75" value="2019.75" step="0.25">
+  </body>
+  <script>
+
+    // CONSTANTS
+
+    const margin = {top:20, left:40, bottom:40, right:20};
+    const w = window.innerWidth - margin.left - margin.right;
+    const h = window.innerHeight - margin.top - margin.bottom;
+
+    var svg = d3.select('div#svg_id')
+	.append("svg")
+	.attr("width", w)
+	.attr("height", h)
+
+    var xscale = d3.scaleLinear()
+	.domain([-74.3,-73.68])
+	.range([margin.left, w + margin.left]);
+
+    var yscale = d3.scaleLinear()
+	.domain([40.48,40.92])
+	.range([h + margin.top, margin.top]);
+    
+    var expscale = d3.scalePow().exponent(Math.E)
+	.domain([0, 2000]);
+    
+    var promises = [
+	d3.json('./police_precincts.geojson'),
+	d3.csv('./precinct_arr_by_yq.csv'),
+	d3.csv('./total_use_of_force.csv')
+    ]
+
+    Promise.all(promises).then(ready)
+
+    function ready([precincts, arrests, use_of_force]) {
+	var color1 = d3.scaleOrdinal(d3.schemeCategory10);
+	var precinct_features = precincts.features;
+	var color2 = d3.scaleSequential(
+	    (d) => d3.interpolateReds(expscale(d))
+	);
+	var color_force_rate = function(rate) {
+	    return d3.interpolateSpectral(1 / 0.07 * (0.07 - rate))
+	};
+
+	var arr_pyq = {};
+	arrests.forEach(function(d) {
+	    var year = d['year'];
+	    var quarter = d['quarter'];
+	    for ([k,v] of Object.entries(d).slice(0,-2)) {
+		if (!(k in arr_pyq)) {
+		    arr_pyq[k] = {}
+		};
+		if (!(year in arr_pyq[k])) {
+		    arr_pyq[k][year] = {}
+		};
+		arr_pyq[k][year][quarter] = parseInt(v)
+	    };
+	});
+	var force_pyq = {};
+	use_of_force.forEach(function(d) {
+	    var year = d['year'];
+	    var quarter = d['quarter'];
+	    var precinct = d['precinct'];
+	    var nforce = d['all_force'];
+	    if (!(precinct in force_pyq)) {
+		force_pyq[precinct] = {}
+	    };
+	    if (!(year in force_pyq[precinct])) {
+		force_pyq[precinct][year] = {}
+	    };
+	    force_pyq[precinct][year][quarter] = parseInt(nforce)
+	});
+
+	var arr_and_force = {};
+
+	d3.select('body').append('div')
+	    .attr('id','tooltip')
+	    .attr('style','position:absolute; opacity: 0;');
+
+	svg.selectAll('polygon')
+	    .data(precincts.features)
+	    .enter()
+	    .append('polygon')
+	    .attr('points', function(d) {
+		var outer = d.geometry.coordinates;
+		return(outer.map(function(inner) {
+		    return(inner.map(function(points) {
+			return(points.map(function(d) {
+			    return [xscale(d[0]),yscale(d[1])].join(',');
+			}).join(' '));
+		    }).join(' '));
+		}).join(' '));})
+	    .on('mouseover', function(d) {
+		var obj = arr_and_force[d.properties.precinct]; 
+		var arrests = d3.format(' 4d')(obj['arrests']);
+		var force  = d3.format(' 3d')(obj['force']);
+		var force_rate = d3.format('0.4f')(obj['force_per_arrest']);
+		var msg = 'arrests: ' + arrests + ', uses of force: ' + force + ', force per arrest: ' + force_rate;
+		if (force_rate == 'NaN') { var msg = '' };
+		d3.select('#tooltip')
+		    .transition()
+		    .duration(200)
+		    .style('opacity', 1)
+		    .text(msg)
+	    })
+	    .on('mouseout', function(){
+		d3.select('#tooltip').style('opacity',0)
+	    })
+	    .on('mousemove', function() {
+		d3.select('#tooltip')
+		    .style('left', (d3.event.pageX + 10) + 'px')
+		    .style('top', (d3.event.pageY + 10) + 'px')
+	    })
+
+	svg.append('text')
+	    .attr('x', margin.left)
+	    .attr('y',margin.top)
+	    .attr('font-size', 25)
+	    .text(function (d) {
+		return 'Quarterly Use of Force per Arrest by NYPD'
+	    });	
+
+	Object.keys(arr_pyq).forEach(k => arr_and_force[k] = {});
+	function update_arr_and_force(year, quarter) {
+	    Object.keys(arr_pyq).filter(k => k in force_pyq).forEach(
+		function(pct) {
+		    var new_arr = arr_pyq[pct][year][quarter];
+		    var new_force = force_pyq[pct][year][quarter];
+		    var new_rate = new_force / new_arr;
+		    if (!(isNaN(new_rate))) {
+			arr_and_force[pct]['arrests'] = new_arr;
+			arr_and_force[pct]['force'] = new_force;
+			arr_and_force[pct]['force_per_arrest'] = new_rate;
+		    }
+		    
+		});
+	    svg.selectAll('polygon')
+		.data(precinct_features)
+		.attr('fill-opacity',function(d, i) {
+		    var prec = d.properties.precinct;
+		    var arrests = arr_and_force[prec]['arrests'];
+		    return arrests / 1200 ;
+		})
+		.attr('fill',function(d, i) {
+		    var prec = d.properties.precinct;
+		    var rate = arr_and_force[prec]['force_per_arrest'];
+		    if (rate > 0.07) { console.log([prec,rate]); };
+		    var newcol = color_force_rate(rate);
+		    return newcol;
+		});
+	    
+	    d3.select('text#yq').remove();
+	    svg.append('text')
+	    	.attr('x', margin.left)
+		.attr('y', margin.top + h / 5)
+		.attr('font-size', 20)
+		.attr('id', 'yq')
+		.text(function (d) { return "                   "})
+		.text(function (d) { return year + " Q" + quarter })
+	    
+	};
+
+	d3.select("#yqslider").on("change", function(d){
+	    var y = Math.floor(this.value);
+	    var q = (this.value - y) * 4 + 1;
+	    update_arr_and_force(
+		d3.format('01d')(y),
+		d3.format('01d')(q))
+	})
+
+
+	update_arr_and_force('2019','4');
+	
+    }
+
+
+  </script>
+</html>
+
