@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+    <script src="https://d3js.org/topojson.v2.min.js"></script>
+    <script src="https://d3js.org/d3-geo-projection.v2.min.js"></script>
+<title>Recent Home Sales in Westchester County NY</title>
+<h2>Modeling Home Sale Prices in Westchester County, NY</h2>
+
+<h3>Motivation</h3>
+  <p>The pandemic has caused nearly everyone to spend more time in their home than they're accustomed to. Sometimes, the experience leads to a wandering eye. This is a brief exploration of the factors that contribute to home prices for 4 zip codes in Westchester County, NY: 10533, 10591, 10577, and 10604</p>
+
+  <h3>Methodology</h3>
+    <p>Using housing data from trulia.com, build a model for sale price.  Features considered were: assigned school quality, square footage, lot size, sale date, having a garage, type of basement (if any), and distance from the nearest Metro North station.</p>
+    <p>The listing records had different fields available and missing, so a model was fit to each possible feature combination, and adjusted r-squared was used to choose among them.</p>
+
+    <h3>Modeling Results</h3>
+    <p>Because each listing had different available data, the predictions provided below are from the best model (by adjusted r-squared) which includes only available features. Red listings have actual sale prices too for comparison</p>
+  </head>
+  <div></div>
+  <script>
+
+    // Margins
+    const margin = {top:20, left:40, bottom:40, right:20};
+    const w = window.innerWidth - margin.left - margin.right;
+    const h = window.innerHeight - margin.top - margin.bottom;
+
+    var svg = d3.select('div')
+	.append("svg")
+	.attr("width", w)
+	.attr("height", h)
+
+    // different colors for adjacent municipalities
+    var towncolor = d3.scaleOrdinal(d3['schemeCategory10'])
+
+    var xscale = d3.scaleLinear()
+	.domain([-73.9,-73.6])
+	.range([margin.left, w + margin.left]);
+
+    var yscale = d3.scaleLinear()
+	.domain([40.85,41.15])
+	.range([h + margin.top, margin.top]);
+    
+    var expscale = d3.scalePow().exponent(Math.E)
+	.domain([0, 2000]);
+    
+    var promises = [
+	d3.json('./Municipal_Boundaries_.geojson'),
+	d3.csv('./home_listing_data_with_preds.csv'),
+	d3.csv('./metro_north_locations.csv')
+    ]
+    function usd(f) {
+	return Intl.NumberFormat(
+	    'en-US',
+	    { style: 'currency', currency: 'USD'}
+	).format(f)
+    }
+    function html_of_home(d) {
+	return '<li>Sold on: ' + d.dtdate + '</li>' +
+    	    '<li>Beds: ' + d.bed + '</li>' +
+	    '<li>Bath: ' + d.bath + '</li>' +
+	    '<li>Zip Code: ' + d.zipcode + '</li>' +
+	    '<li>Living Area: ' + d.sqft + ' sqft</li>' +
+	    '<li>Lot Size: ' +
+	    Math.round(10 * d.lotsize) / 10 + ' sqft</li>' +
+	    '<li>Garage: ' + d.garage + '</li>' +
+	    '<li>Basement: ' + d.basement + '</li>' +
+	    '<li>Schools: ' +
+	    Math.round(d.schools * 100) / 10 + '/10</li>' +
+	    '<li>Nearest Train: ' +
+	    Math.round(10 * d.train) / 10 + 'km</li>' +
+	    '<li>Model Features: ' + d.use_features + '</li>' +
+	    '<li>Model Degrees of Freedom: ' +
+	    d.degrees_of_freedom + '</li>' +
+	    '<li>Actual Sale Price: ' + usd(d.price) + '</li>' +
+	    '<li>Predicted Sale Price: ' + usd(d.pred) + '</li>' +
+	    '<li>Confidence Range: ' + usd(d.pred_lower) + ' - '
+	    + usd(d.pred_upper)
+	    + '</li>'
+    }
+    
+    Promise.all(promises).then(ready)
+
+    var boundary_features = [];
+    function ready([boundaries, listings, metro_north]) {
+
+	var div_tt = d3.select('body').append('div')
+	    .attr('id','tooltip')
+	    .attr('style','position:absolute; opacity: 0;');
+	
+	console.log('in ready!');
+	boundary_features = boundaries.features;
+	console.log('defined boundary_features!');
+	svg.selectAll('polygon')
+	    .data(boundaries.features)
+	    .enter()
+	    .append('polygon')
+	    .attr('points', function(d) {
+		var inner = d.geometry.coordinates;
+		    return(inner.map(function(points) {
+			return(points.map(function(d) {
+			    return [xscale(d[0]),
+				    yscale(d[1])].join(',');
+			}).join(' '));
+		    }).join(' '));})
+	    .attr('stroke', 'lightgray')
+	    .attr('fill', function(d, i) {
+		return 'white' //towncolor(i)
+	    })
+	    .on('mouseover', function(d) {
+		d3.select('#tooltip')
+		    .transition()
+		    .duration(200)
+		    .style('opacity', 1);
+		div_tt.html(
+		    '<h5>' + d.properties.Name + '</h5>'
+		)
+	    })
+	    .on('mouseout', function(){
+		d3.select('#tooltip').style('opacity',0)
+	    })
+	    .on('mousemove', function() {
+		d3.select('#tooltip')
+		    .style('left', (d3.event.pageX + 10) + 'px')
+		    .style('top', (d3.event.pageY + 10) + 'px')
+	    });
+
+	// the homes
+	svg.selectAll('circle')
+	    .data(listings)
+	    .enter()
+	    .append('circle')
+	    .attr('r', '2')
+	    .style('fill', function(d){
+		if (d.saledate != '') {
+		    return 'red'
+		} else {
+		    return 'orange'
+		}
+	    })
+	    .attr('cx', function(d) {
+		return xscale(parseFloat(d.lon));
+	    })
+	    .attr('cy', function(d) {
+		return yscale(parseFloat(d.lat));
+	    })
+	    .on('mouseover', function(d) {
+		d3.select('#tooltip')
+		    .transition()
+		    .duration(200)
+		    .style('opacity', 1);
+		div_tt.html( html_of_home(d)
+		)
+	    })
+	    .on('mouseout', function(){
+		d3.select('#tooltip').style('opacity',0)
+	    })
+	    .on('mousemove', function() {
+		d3.select('#tooltip')
+		    .style('left', (d3.event.pageX + 10) + 'px')
+		    .style('top', (d3.event.pageY + 10) + 'px')
+	    });
+
+	// train stations
+	svg.selectAll('rect')
+	    .data(metro_north)
+	    .enter()
+	    .append('rect')
+	    .attr('x', function(d) {
+		return xscale(d.lon)
+	    })
+	    .attr('y', function(d) {
+		return yscale(d.lat)
+	    })
+	    .attr('alpha', 0.4)
+	    .attr('width', 6)
+	    .attr('height', 10)
+	    .attr('fill','blue')
+
+	    .on('mouseover', function(d) {
+		d3.select('#tooltip')
+		    .transition()
+		    .duration(200)
+		    .style('opacity', 1);
+		div_tt.html(
+		    '<h5>' + d.name + ' Metro North Station</h5>'
+		)
+	    })
+	    .on('mouseout', function(){
+		d3.select('#tooltip').style('opacity',0)
+	    })
+	    .on('mousemove', function() {
+		d3.select('#tooltip')
+		    .style('left', (d3.event.pageX + 10) + 'px')
+		    .style('top', (d3.event.pageY + 10) + 'px')
+	    });
+
+
+
+	
+    }
+
+
+  </script>
+  <body>
+    
+    <h3>Takeaways</h3>
+    <p>As expected, both sale date and distance from nearest Metro North station has a significat positive beta to home price. There was limited support for another expectation: that unfinished basements would lower sale prices. Home prices in zip code 10604 were significantly lower than the remaining zip codes. And it was interesting that generally number of bathrooms was a more siginificant factor than number of bedrooms. There's a lot to look into with this data in the future. </p>
+
+
+    <h3>Sources</h3>
+    <li>listings data from https://www.trulia.com</li>
+    <li>geojson data from  https://gis.westchester.gov</li>
+  
+    </body>
+</html>
+
