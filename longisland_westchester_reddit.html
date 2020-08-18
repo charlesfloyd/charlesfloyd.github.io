@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+
+<title>Topic Modeling on Reddit Posts</title>
+<h2>Exploring Long Island and Westchester through hot Reddit posts </h2>
+
+<h3>Motivation</h3>
+    <p>For someone who lives in New York City and is considering their options, two possibilities are heading east to Long Island, and heading north to Westchester. How might you get a feel for those communities without living or visiting there? Is there a way to hear what the locals talk about?</p>
+    <p>One idea is to listen to conversations locals are having to see what's topical in each place.  Using "hot" posts from subreddits for <a href="https://www.reddit.com/r/Westchester/">Westchester</a> and <a href="https://www.reddit.com/r/longisland/">Long Island</a> as a proxy for those conversations, and we can find the 5 most prevalent "topics" for each subreddit and the 20 most probable words for each topic.</p>
+
+  <h3>Methodology</h3>
+    <p>Using the PRAW library in python, get the ~150 hottest submissions and all associated comments, filtering by minimum score of 1 to hopefully avoid spam.  For each submission, Concatenate the text, comments, and replies into a single document, and use the documents for topic modeling as described <a href="https://stackabuse.com/python-for-nlp-topic-modeling">here</a>.</p>
+
+    <h3>Results</h3>
+    <p>For each location, the topics and their most probable words are displayed below:</p>
+
+  </head>
+  <div></div>
+  <script>
+
+    // Margins
+    const header_height = 20
+    const label_width   = 100
+    const topic_width   = 10
+    const margin = {
+	top:20,
+	left:40,
+	bottom:40,
+	right:20
+    };
+    const w = window.innerWidth - margin.left - margin.right;
+    const h = window.innerHeight - margin.top - margin.bottom;
+
+    var svg = d3.select('body')
+	.append("svg")
+	.attr('width', w + margin.left + margin.right)
+	.attr('height', h + margin.top + margin.bottom)
+	.append('g')
+	.attr(
+	    'transform',
+	    'translate(' + margin.left + ',' + margin.top + ')'
+	);
+  
+    function decache(f) {
+	return f + '?' + Math.floor(Math.random() * 1000)
+    }
+    var promises = [
+	d3.csv(decache('./top_words.csv'))
+    ]
+    
+    Promise.all(promises).then(ready);
+
+    var words = [];
+    function max_prob(data) {
+	return d3.max(
+	    data,
+	    function(d) {return parseFloat(d['prob']);}
+	);
+    };
+
+    function ready([top_words]) {
+	
+	words = top_words;
+
+	var max_word_prob = max_prob(words);
+	var xscale = d3.scaleLinear()
+	    .domain([0,max_word_prob])
+	    .range([0, w / 5]);
+
+	var topic_sep = 250;
+	var rank_mult = 10;
+	
+	var yscale = d3.scaleLinear()
+	    .domain([0, 20 * rank_mult + 5 * topic_sep])
+	    .range([50, h]);
+
+	svg.append('text')
+	    .attr('dx', 2 * w / 5 - 75)
+	    .attr('dy', margin.top)
+	    .text('Long Island');
+	svg.append('text')
+	    .attr('dx', 3 * w / 5)
+	    .attr('dy', margin.top)
+	    .text('Westchester');
+	for (i = 0;i < 5; i++) {
+	    svg.append('text')
+		.attr('dx', 2 * w / 5 + 40)
+		.attr('dy', yscale(rank_mult * 10 + topic_sep * i))
+		.text('Topic ' + (i+1));
+	};
+
+	words.forEach(function(d, i) {
+	    var label = d['label'];
+	    var prob = parseFloat(d['prob']);
+	    var word = d['word'];
+	    var topic = parseInt(d['topic']);
+	    var rank = parseInt(d['ranknum']);
+	    if ((rank % 2) == 0) {var shift = 0;}
+	    else {var shift = w / 15}; 
+	    var line_y = yscale(rank_mult * rank + topic_sep * topic);
+	    if (label == 'Long Island') {
+		if ((rank % 2) == 0) {var color = 'green';}
+		else {var color = 'blue';}; 		
+		var x1 = 2 * w / 5 - xscale(prob);
+		var x2 = 2 * w / 5;
+		var line_x = 0 + shift;
+		var circle_x = x1;
+	    }
+	    else {
+		if ((rank % 2) == 0) {var color = 'blue';}
+		else {var color = 'green';}; 		
+		var x1 = 3 * w / 5;
+		var x2 = 3 * w / 5 + xscale(prob);
+		var line_x = 9 * w / 10 + shift;
+		var circle_x = x2
+	    }
+	    svg.append('line')
+		.attr('x1',x1)
+		.attr('y1',line_y)
+		.attr('x2',x2)
+		.attr('y2',line_y)
+		.attr('stroke',color);
+	    svg.append('text')
+		.attr('dx', line_x)
+		.attr('dy', line_y)
+		.text(word)
+		.attr('font-size', '10px')
+		.attr('stroke',color);
+	    svg.append('circle')
+		.attr('cx',circle_x)
+		.attr('cy',line_y)
+		.attr('r', 2)
+		.attr('stroke', color)
+		.attr('alpha', 0.5)
+	})
+    
+	
+	
+    }
+  </script>
+  <body>
+    
+    <h3>Takeaways</h3>
+    <p>There's some topic overlap from these posts, including conversations about power, cable providers, and schools. But it's not clear whether the words used in association with those terms is evidence of a different sentiment in the communities about the issues.</p>
+
+
+    <h3>Sources</h3>
+    <li><a href="https://www.reddit.com">submission and comment data</a></li>
+    <li><a href="https://praw.readthedocs.io/en/latest/index.html">the PRAW library for reddit api requests</a></li>
+    <li><a href="https://stackabuse.com/python-for-nlp-topic-modeling">topic modeling reference</a></li>
+    <li><a href="https://www.d3-graph-gallery.com/graph/lollipop_ordered.html">lolipop plot reference</a> </li>
+  
+    </body>
+</html>
+
