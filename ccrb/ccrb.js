@@ -41,17 +41,24 @@ window.onload = () => {
 		  'translate(' + (margin.left + xmult * w)
 		  + ',' + (margin.top + ymult * h) + ')');
     };
-    [{name:'Year', col:'year_received',ymult:0},
-     {name:'Complainant Race', col:'complainant_ethnicity', ymult:0.15},
-     {name:'Officer Race', col:'mos_ethnicity', ymult:0.3},
-     {name:'Complaint Type', col:'fado_type', ymult:0.45}].forEach((d, i) => {
+    [
+	{name:'Year', col:'year_received',ymult:0},
+	{name:'Complainant Race', col:'complainant_ethnicity', ymult:0},
+	{name:'Officer Race', col:'mos_ethnicity', ymult:0},
+	{name:'Complaint Type', col:'fado_type', ymult:0},
+	{name:'Contact Reason', col:'contact_reason_category', ymult:0},
+	{name:'Contact Result', col:'contact_result', ymult:0},
+	{name:'Resolution Months', col:'resolution_months', ymult:0},
+	{name:'Complaint Result', col:'complaint_result', ymult:0},
+    ].forEach((d, i) => {
 	 console.log('i is', i);
 	 d['g'] = g_of_xy_mult(0, d.ymult);
-	 d['max_h'] = 0.15 * h;
+	 d['max_h'] = 0.1 * h;
 	 d['j'] = i;
 	 gs[d.name] = d
      });
-}
+};
+
 const initialize_gs = (data) => {
     console.log(margin, w, h);
     console.log('here');
@@ -64,13 +71,13 @@ const initialize_gs = (data) => {
 	let counts = Object.entries(
 	    ccrblib.organize_data(data, curr.col,[])
 	);
-	let max_h = d3.max(counts, (ar) => ar[1]);
+	let max_h = d3.max(counts, (ar) => ar[1]) * 1.1;
 	console.log(counts, 'max_h is',max_h);
 	let n = counts.length;
 	let rect_w = w / n;
-	let rect_h = (ar) => {return ar[1] / max_h * curr.max_h};
 	let max_label_w = d3.max(counts, (ar) => ar[0].length + 1);
 	let font_size = 1.75*  rect_w / max_label_w;
+	let rect_h = (ar) => {return ar[1] / max_h * (curr.max_h - font_size)};
 	g.selectAll('rect')
 	    .data(counts)
 	    .enter()
@@ -93,8 +100,9 @@ const initialize_gs = (data) => {
 };
 
 d3.csv('./allegations.csv').then(
-    (d) => {
-	initialize_gs(d)
+    (data) => {
+	data = data.map(ccrblib.update_dict);
+	initialize_gs(data)
     },
     () => console.log('Error!')
 );
