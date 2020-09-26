@@ -12,8 +12,13 @@ const resolution_months = (d) => { return 12 * resolution_years(d) };
 
 const organize_data = (data, group_field, filters) => {
     console.log('applying filters');
+    console.log(data[0]);
     filters.forEach((d) => {
-	data = data.filter((x) => {return x[d.field] === x[d.value]})
+	console.log('data length in', data.length);
+	// if (d.field in data[0]) {console.log('field found')}
+	// else {console.log('field NOT found!', d.field)};
+	data = data.filter((x) => {return x[d.field] === d.value})
+	console.log('data length out', data.length);
     });
     console.log('remaining data has length', data.length);
     console.log(group_field, Object.keys(data[0]));    
@@ -71,5 +76,6 @@ const update_dict = (d) => {
 
 module.exports = {
     update_dict: update_dict,
-    organize_data: organize_data
+    organize_data: organize_data,
+    objeq: _.isEqual
 };
