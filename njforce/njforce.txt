@@ -1,0 +1,6 @@
+Description of goals
+
+Evaluate whether any patterns exists in the NJ OAG data that suggest race plays a significnt role in police use of force.
+
+Attempt to model type of force used and medical treatment received by subject.  After accounting for other variables, look for significance of the variables representing race of subject and race of officer.
+
