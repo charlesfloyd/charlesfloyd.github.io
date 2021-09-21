@@ -44,13 +44,13 @@ window.onload = () => {
     const g_xmult = 0;
     const g_ymult = 0;
     [
-	{name:'Year', col:'year_received'},
+	{name:'Year', col:'year_received', range: true},
 	{name:'Complainant Race', col:'complainant_ethnicity'},
 	{name:'Officer Race', col:'mos_ethnicity'},
 	{name:'Complaint Type', col:'fado_type'},
 	{name:'Contact Reason', col:'contact_reason_category'},
 	{name:'Contact Result', col:'contact_result'},
-	{name:'Resolution Months', col:'resolution_months'},
+	{name:'Resolution Months', col:'resolution_months', range: true},
 	{name:'Complaint Result', col:'complaint_result'},
     ].forEach((d, i) => {
 	d['g'] = g_of_xy_mult(g_xmult, g_ymult);
@@ -69,16 +69,14 @@ const initialize_gs = (data) => {
 	let curr = d[1];
 	curr['xs'] = {};
 	let counts = Object.entries(ccrblib.organize_data(data, curr.col, []));
-	let n = counts.length;
-	let rect_w = curr.max_w / n;
-	let max_label_w = d3.max(counts, (ar) => ar[0].length + 1);
+	let n = counts.length ;
+	let rect_w = curr.max_w / n / 1.1;
+	let max_label_w = d3.max(counts, (ar) => String(ar[0]).length + 1);
 	let font_size = 1.75 * rect_w / max_label_w;
 	curr['font_size'] = font_size;
 	curr['width'] = rect_w;
-	counts.forEach((c, i) => {
-	    // console.log(c[0], i);
-	    curr.xs[c[0]] = rect_w * i;
-	});
+	curr['label_size'] = 
+	counts.forEach((c, i) => {curr.xs[c[0]] = rect_w * i;});
 	curr.g.selectAll('text')
 	    .data(counts)
 	    .enter()
@@ -88,6 +86,14 @@ const initialize_gs = (data) => {
 	    .style('font-size', font_size)
 	    .text((d)=>d[0])
 	    .attr('fill','blue');
+	curr.g.append('text')
+	    .attr('x',0)
+	    .attr('y',curr.min_h)
+	    .attr('width',w)
+	    .attr('fill','gray')
+	    .style('text-anchor','center')
+	    .style('font-size',font_size)
+	    .text(curr.name);
     });
     update_gs(data, []);
 };
@@ -109,6 +115,21 @@ const update_gs = (data, filters) => {
 	let axis = d3.axisLeft()
 	    .scale(scale)
 	    .ticks(5);
+	let onclick = (d) => {
+	    let new_f = {field:curr.col,value:d[0]};
+	    if (filters.some((f) => {return ccrblib.objeq(f,new_f)})) {
+		console.log('removing', new_f);
+		filters = filters.filter((f) => {return !ccrblib.objeq(f,new_f)})
+	    } else {
+		console.log('adding', new_f);
+		filters.push(new_f)
+	    };
+	    console.log('filters is:', filters);
+	    Object.entries(gs).forEach((x) => {
+		x[1].g.selectAll('rect').remove();
+	    });
+	    update_gs(data, filters);
+	};
 	g.selectAll('rect')
 	    .data(counts)
 	    .enter()
@@ -117,24 +138,10 @@ const update_gs = (data, filters) => {
 	    .attr('y',(d,i) => {return scale(d[1])})
 	    .attr('width', curr.width)
 	    .attr('height', rect_h)
-	    .on('click', (d) => {
+	    .on('click', onclick);
 		// console.log(d, filters, typeof filtersz);
-		let new_f = {field:curr.col,value:d[0]};
-		if (filters.some((f) => {return ccrblib.objeq(f,new_f)})) {
-		    console.log('removing', new_f);
-		    filters = filters.filter((f) => {return !ccrblib.objeq(f,new_f)})
-		} else {
-		    console.log('adding', new_f);
-		    filters.push(new_f)
-		};
-		console.log('filters is:', filters);
-		Object.entries(gs).forEach((x) => {
-		    x[1].g.selectAll('rect').remove();
-		});
-		update_gs(data, filters);
-	    });
     });
-}
+};
 
 //const initialize_gs = (data) => update_gs(data, [])
 

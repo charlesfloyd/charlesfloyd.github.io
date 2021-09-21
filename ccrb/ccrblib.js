@@ -11,8 +11,8 @@ const resolution_months = (d) => { return 12 * resolution_years(d) };
 
 
 const organize_data = (data, group_field, filters) => {
-    console.log('applying filters');
-    console.log(data[0]);
+    // console.log('applying filters');
+    // console.log(data[0]);
     filters.forEach((d) => {
 	console.log('data length in', data.length);
 	// if (d.field in data[0]) {console.log('field found')}
@@ -20,8 +20,8 @@ const organize_data = (data, group_field, filters) => {
 	data = data.filter((x) => {return x[d.field] === d.value})
 	console.log('data length out', data.length);
     });
-    console.log('remaining data has length', data.length);
-    console.log(group_field, Object.keys(data[0]));    
+    // console.log('remaining data has length', data.length);
+    // console.log(group_field, Object.keys(data[0]));    
     return _.countBy(data, (d) => { return d[group_field] })
 };
       
